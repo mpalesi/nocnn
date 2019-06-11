@@ -83,6 +83,33 @@ void Estimation::stimeLoadFeatureMap(int layer_no, TLayer& layer,
 
 // ----------------------------------------------------------------------
 
+void Estimation::stimeLeakage(TLayerStat& layer_stat)
+{
+  TEnergyComponents ec;
+
+  // we assume power gating of main memory during communication and
+  // computation periods
+  ec = noc.getEnergyMMemLeakage(layer_stat.comm_latency +
+				layer_stat.comp_latency); 
+  layer_stat.addEnergyComponents(ec);
+
+  // we assume power gating of local memory whule waiting main memory
+  // transfers
+  ec = noc.getEnergyLMemLeakage(layer_stat.active_cores,
+				layer_stat.comm_latency +
+				layer_stat.comp_latency +
+				layer_stat.mmem_latency); 
+  layer_stat.addEnergyComponents(ec);
+  
+  ec = noc.getEnergyCommLeakage(noc.getNumberOfCores(),  // One router for each PE
+			       layer_stat.comm_latency +
+			       layer_stat.comp_latency +
+			       layer_stat.mmem_latency); 
+  layer_stat.addEnergyComponents(ec);
+}
+
+// ----------------------------------------------------------------------
+
 void Estimation::stimeConv(int layer_no, TLayer& layer,
 			   TLayerStat& layer_stat)
 {
@@ -123,7 +150,11 @@ void Estimation::stimeConv(int layer_no, TLayer& layer,
 
   layer_stat.active_cores += nactive_cores;
   layer_stat.ops_per_core += nmac_per_core;
-  
+
+  // Compute leakage energy component (must be called at the end when
+  // timing statistics are updated)
+  stimeLeakage(layer_stat);
+    
   // Update history
   THistorySample h;
   h.setSample(nactive_cores, layer.output_fm.getSize() / nactive_cores);
@@ -176,6 +207,11 @@ void Estimation::stimeFC(int layer_no, TLayer& layer,
   layer_stat.active_cores += nactive_cores;
   layer_stat.ops_per_core += nmac_per_core;
 
+  // Compute leakage energy component (must be called at the end when
+  // timing statistics are updated)
+  stimeLeakage(layer_stat);
+
+  
   // Update history
   THistorySample h;
   h.setSample(nactive_cores, layer.output_fm.getSize() / nactive_cores);
@@ -210,6 +246,10 @@ void Estimation::stimePool(int layer_no, TLayer& layer,
   layer_stat.active_cores += nactive_cores;
   layer_stat.ops_per_core += npool_per_core;
 
+  // Compute leakage energy component (must be called at the end when
+  // timing statistics are updated)
+  stimeLeakage(layer_stat);
+  
   // Update history
   THistorySample h;
   h.setSample(nactive_cores, layer.output_fm.getSize() / nactive_cores);
@@ -273,12 +313,12 @@ void Estimation::hline(int n, char c)
 #define DOUBLE_FORMAT(x) std::scientific <<std::setprecision(2)<<(x)
 void Estimation::showStats(TGlobalStats& stats)
 {
-  hline(125, '-');
+  hline(165, '-');
 
   cout << setw(16) << "Layer"
        << setw(10) << "Type"
        << setw(30) << "Latency (cycles)"
-       << setw(40) << "Energy (Joule)"
+       << setw(80) << "Energy (Joule)"
        << setw(12) << "Mem traffic"
        << setw(8)  << "Cores"
        << setw(9) << "OPs"
@@ -289,15 +329,19 @@ void Estimation::showStats(TGlobalStats& stats)
        << setw(10) << "Comp"
        << setw(10) << "MMem"
        << setw(10) << "Comm"
+       << setw(10) << "CommLeak"
        << setw(10) << "Comp"
+       << setw(10) << "CompLeak"
        << setw(10) << "LMem"
+       << setw(10) << "LMemLeak"
        << setw(10) << "MMem"
+       << setw(10) << "MMemLeak"
        << setw(12) << "(bytes)"
        << setw(8)  << ""
        << setw(9)  << "per core"
        << endl;
   
-  hline(125, '=');
+  hline(165, '=');
   
   for (int l=0; l<cnn.layers.size(); l++)
     {
@@ -307,27 +351,35 @@ void Estimation::showStats(TGlobalStats& stats)
 	   << setw(10) << stats.layer_stats[l].comp_latency
 	   << setw(10) << stats.layer_stats[l].mmem_latency
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comm_energy)
+	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comm_energy_leakage)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comp_energy)
+	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comp_energy_leakage)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].lmem_energy)
+	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].lmem_energy_leakage)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].mmem_energy)
+	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].mmem_energy_leakage)
 	   << setw(12) << stats.layer_stats[l].main_memory_traffic
 	   << setw(8)  << stats.layer_stats[l].active_cores
 	   << setw(9)  << stats.layer_stats[l].ops_per_core
 	   << endl;
     }
 
-  hline(125, '-');
+  hline(165, '-');
 
   cout << setw(16+10) << "TOTAL"
        << setw(10) << stats.total_comm_latency
        << setw(10) << stats.total_comp_latency
        << setw(10) << stats.total_mmem_latency
        << setw(10) << DOUBLE_FORMAT(stats.total_comm_energy)
+       << setw(10) << DOUBLE_FORMAT(stats.total_comm_energy_leakage)
        << setw(10) << DOUBLE_FORMAT(stats.total_comp_energy)
+       << setw(10) << DOUBLE_FORMAT(stats.total_comp_energy_leakage)
        << setw(10) << DOUBLE_FORMAT(stats.total_lmem_energy)
+       << setw(10) << DOUBLE_FORMAT(stats.total_lmem_energy_leakage)
        << setw(10) << DOUBLE_FORMAT(stats.total_mmem_energy)
+       << setw(10) << DOUBLE_FORMAT(stats.total_mmem_energy_leakage)
        << setw(12) << stats.total_main_memory_traffic
        << endl;
 
-  hline(125, '-');
+  hline(165, '-');
 }

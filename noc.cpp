@@ -78,7 +78,7 @@ bool NoC::searchRouting(ifstream& f, int& ra)
 
 // ----------------------------------------------------------------------
 
-bool NoC::searchLocalMemory(ifstream& f, int& lms, double& epb)
+bool NoC::searchLocalMemory(ifstream& f, int& lms, double& epb, double& leakpwr)
 {
   f.clear();
   f.seekg(0, ios::beg);
@@ -87,7 +87,7 @@ bool NoC::searchLocalMemory(ifstream& f, int& lms, double& epb)
   while (!f.eof())
     {
       getline(f, line);
-      if (sscanf(line.c_str(), "local_memory: %d,%lf", &lms, &epb) == 2)
+      if (sscanf(line.c_str(), "local_memory: %d,%lf,%lf", &lms, &epb, &leakpwr) == 3)
 	return true;
     }
 
@@ -96,7 +96,7 @@ bool NoC::searchLocalMemory(ifstream& f, int& lms, double& epb)
 
 // ----------------------------------------------------------------------
 
-bool NoC::searchMainMemoryBW(ifstream& f, float& bw)
+bool NoC::searchMainMemory(ifstream& f, float& bw, double& epb, double& leakpwr)
 {
   f.clear();
   f.seekg(0, ios::beg);
@@ -105,7 +105,7 @@ bool NoC::searchMainMemoryBW(ifstream& f, float& bw)
   while (!f.eof())
     {
       getline(f, line);
-      if (sscanf(line.c_str(), "main_memory_bw: %f", &bw) == 1)
+      if (sscanf(line.c_str(), "main_memory: %f,%lf,%lf", &bw, &epb, &leakpwr) == 3)
 	return true;
     }
 
@@ -114,7 +114,7 @@ bool NoC::searchMainMemoryBW(ifstream& f, float& bw)
 
 // ----------------------------------------------------------------------
 
-bool NoC::searchLink(ifstream& f, int& lw)
+bool NoC::searchRouter(ifstream& f, int& rl, double& epb, double& leakpwr)
 {
   f.clear();
   f.seekg(0, ios::beg);
@@ -123,7 +123,7 @@ bool NoC::searchLink(ifstream& f, int& lw)
   while (!f.eof())
     {
       getline(f, line);
-      if (sscanf(line.c_str(), "link: %d", &lw) == 1)
+      if (sscanf(line.c_str(), "router: %d,%lf,%lf", &rl, &epb, &leakpwr) == 3)
 	return true;
     }
 
@@ -132,7 +132,7 @@ bool NoC::searchLink(ifstream& f, int& lw)
 
 // ----------------------------------------------------------------------
 
-bool NoC::searchOPC(ifstream& f, int& n, int& m)
+bool NoC::searchLink(ifstream& f, int& lw, double& epb, double& leakpwr)
 {
   f.clear();
   f.seekg(0, ios::beg);
@@ -141,7 +141,7 @@ bool NoC::searchOPC(ifstream& f, int& n, int& m)
   while (!f.eof())
     {
       getline(f, line);
-      if (sscanf(line.c_str(), "opc: %d,%d", &n, &m) == 2)
+      if (sscanf(line.c_str(), "link: %d,%lf,%lf", &lw, &epb, &leakpwr) == 3)
 	return true;
     }
 
@@ -150,7 +150,9 @@ bool NoC::searchOPC(ifstream& f, int& n, int& m)
 
 // ----------------------------------------------------------------------
 
-bool NoC::searchRouterLatency(ifstream& f, int& rl)
+bool NoC::searchPE(ifstream& f, int& macopc, int& poolopc,
+		   double& epop_mac, double& epop_pool,
+		   double& leakpwr)
 {
   f.clear();
   f.seekg(0, ios::beg);
@@ -159,65 +161,12 @@ bool NoC::searchRouterLatency(ifstream& f, int& rl)
   while (!f.eof())
     {
       getline(f, line);
-      if (sscanf(line.c_str(), "router_latency: %d", &rl) == 1)
+      if (sscanf(line.c_str(), "pe: %d,%d,%lf,%lf,%lf", &macopc, &poolopc,
+		 &epop_mac, &epop_pool, &leakpwr) == 5)
 	return true;
     }
 
   return false;
-}
-
-// ----------------------------------------------------------------------
-
-bool NoC::searchEPBNoC(ifstream& f, double& epb_link, double& epb_router)
-{
-  f.clear();
-  f.seekg(0, ios::beg);
-
-  string line;
-  while (!f.eof())
-    {
-      getline(f, line);
-      if (sscanf(line.c_str(), "epb_noc: %lf,%lf", &epb_link, &epb_router) == 2)
-	return true;
-    }
-
-  return false;  
-}
-
-// ----------------------------------------------------------------------
-
-bool NoC::searchEPOP(ifstream& f, double& epop_mac, double& epop_pool)
-{
-  f.clear();
-  f.seekg(0, ios::beg);
-
-  string line;
-  while (!f.eof())
-    {
-      getline(f, line);
-      if (sscanf(line.c_str(), "epop_pe: %lf,%lf", &epop_mac, &epop_pool) == 2)
-	return true;
-    }
-
-  return false;  
-}
-
-// ----------------------------------------------------------------------
-
-bool NoC::searchEPBMem(ifstream& f, double& epb_mem)
-{
-  f.clear();
-  f.seekg(0, ios::beg);
-
-  string line;
-  while (!f.eof())
-    {
-      getline(f, line);
-      if (sscanf(line.c_str(), "epb_mem: %lf", &epb_mem) == 1)
-	return true;
-    }
-
-  return false;  
 }
 
 // ----------------------------------------------------------------------
@@ -275,64 +224,45 @@ bool NoC::loadNoC(const string& fname)
       return false;
     }
 
-    if (!searchRouting(f, routing))
+  if (!searchRouting(f, routing))
     {
       cerr << "Unspecified routing type or invalid format" << endl;
       return false;
     }
 
-  if (!searchLocalMemory(f, local_memory_size, epb_lmemory))
+  if (!searchLocalMemory(f, local_memory_size, epb_lmemory, leak_pwr_lmemory))
     {
       cerr << "Unspecified local memory or invalid format" << endl;
       return false;
     }
 
-  if (!searchMainMemoryBW(f, memory_bandwidth))
+  if (!searchMainMemory(f, memory_bandwidth, epb_mmemory, leak_pwr_mmemory))
     {
-      cerr << "Unspecified main memory bandwidth or invalid format" << endl;
+      cerr << "Unspecified main memory or invalid format" << endl;
       return false;
     }
 
-  if (!searchLink(f, link_width))
+  if (!searchPE(f, macopc, poolopc, epop_mac, epop_pool, leak_pwr_pe))
     {
-      cerr << "Unspecified link width or invalid format" << endl;
+      cerr << "Unspecified PE or invalid format" << endl;
       return false;
     }
 
-  if (!searchOPC(f, macopc, poolopc))
+  if (!searchRouter(f, router_latency, epb_router, leak_pwr_router))
     {
-      cerr << "Unspecified operations per clock cycle per core or invalid format" << endl;
+      cerr << "Unspecified router or invalid format" << endl;
       return false;
-    }
-
-  if (!searchRouterLatency(f, router_latency))
+    }  
+    
+  if (!searchLink(f, link_width, epb_link, leak_pwr_link))
     {
-      cerr << "Unspecified router latency or invalid format" << endl;
+      cerr << "Unspecified link or invalid format" << endl;
       return false;
     }  
 
   if (!searchMemoryInterfaces(f, memory_interfaces))
     {
       cerr << "Unspecified memory interfaces or invalid format" << endl;
-      return false;
-    }  
-
-
-  if (!searchEPBNoC(f, epb_link, epb_router))
-    {
-      cerr << "Unspecified energy per bit for link and router or invalid format" << endl;
-      return false;
-    }  
-
-  if (!searchEPOP(f, epop_mac, epop_pool))
-    {
-      cerr << "Unspecified energy per operation for processing element or invalid format" << endl;
-      return false;
-    }  
-
-  if (!searchEPBMem(f, epb_mmemory))
-    {
-      cerr << "Unspecified energy per bit for memory or invalid format" << endl;
       return false;
     }  
 
@@ -469,6 +399,7 @@ void NoC::showNoC()
        << "Energy per bit main memory: " << epb_mmemory << " J" << endl
        << "Energy per bit local memory: " << epb_lmemory << " J" << endl
        << "Energy per operation MAC/Pool: " << epop_mac << "/" << epop_pool << " J" << endl
+       << "Leakage power link/router/PE/lmem/mmem: " << leak_pwr_link << "/" << leak_pwr_router << "/" << leak_pwr_pe << "/" << leak_pwr_lmemory << "/" << leak_pwr_mmemory << " W" << endl
        << "memory interfaces: ";
 
   for (set<pair<int,int> >::iterator i=memory_interfaces.begin();
@@ -670,12 +601,12 @@ double NoC::getBottleneckLinkCapacity(int src_node, int dst_node,
 
       double bw_utilization = link_capacity * utilization;
       /*
-      cout << "src " << src_node << " dst " << dst_node << " nbytes " << nbytes
-	   << " link " << path[i].first << "-->" << path[i].second
-	   << " total_load " << lattr.total_load
-	   << " bw_utilization " << bw_utilization
-	   << " link_capacity " << link_capacity
-	   << endl;
+	cout << "src " << src_node << " dst " << dst_node << " nbytes " << nbytes
+	<< " link " << path[i].first << "-->" << path[i].second
+	<< " total_load " << lattr.total_load
+	<< " bw_utilization " << bw_utilization
+	<< " link_capacity " << link_capacity
+	<< endl;
       */
       
       assert(bw_utilization <= link_capacity);
@@ -688,19 +619,19 @@ double NoC::getBottleneckLinkCapacity(int src_node, int dst_node,
 
   /*
   
-  double min_capacity = DBL_MAX;
-  double max_capacity = link_width/8; // Bytes per cycle 
-  for (int i=0; i<path.size(); i++)
+    double min_capacity = DBL_MAX;
+    double max_capacity = link_width/8; // Bytes per cycle 
+    for (int i=0; i<path.size(); i++)
     {
-      TLinkAttr lattr = links.at(path[i]);
-      double link_bw = max_capacity * nbytes/lattr.total_load;  // Bytes per cycle
-      assert(link_bw <= max_capacity);
+    TLinkAttr lattr = links.at(path[i]);
+    double link_bw = max_capacity * nbytes/lattr.total_load;  // Bytes per cycle
+    assert(link_bw <= max_capacity);
 
-      if (link_bw < min_capacity)
-	min_capacity = link_bw;
+    if (link_bw < min_capacity)
+    min_capacity = link_bw;
     }
 
-  return min_capacity;
+    return min_capacity;
   */
 }
 
@@ -711,8 +642,8 @@ long NoC::getCommunicationLatency(int src_node, int dst_node, long nbytes)
   double link_bw = getBottleneckLinkCapacity(src_node, dst_node, nbytes);
 
   /*
-  cout << "[" << src_node << "-->" << dst_node << ", " << nbytes
-  << "] " << (getDistance(src_node, dst_node)*router_latency) + (nbytes / link_bw)       << endl;
+    cout << "[" << src_node << "-->" << dst_node << ", " << nbytes
+    << "] " << (getDistance(src_node, dst_node)*router_latency) + (nbytes / link_bw)       << endl;
   */
   
   return (getDistance(src_node, dst_node)*router_latency) +
@@ -783,11 +714,13 @@ TLatencyComponents NoC::getLatencyM2C(long nbytes, int dst_first, int dst_last)
       int dst_node = pe2node.at(d);
 
       long latency = getCommunicationLatency(closest_mi[dst_node], dst_node, nbytes);
+      
       if (latency > max_latency)
 	max_latency = latency;
     }
-
-  int mem_latency = nbytes/getMainMemoryBandwidth(); // additional cycles to load data from main memory
+  
+  // additional cycles to load data from main memory
+  int mem_latency = nbytes/getMainMemoryBandwidth(); 
 
   TLatencyComponents lc;
   lc.l_comm = max_latency;
@@ -1007,6 +940,51 @@ TEnergyComponents NoC::getEnergyPool(long npool, int operand_size)
   
   ec.e_comp += npool * epop_pool;  
   ec.e_lmem += computeEnergyLMem(npool * (operand_size/8));
+  
+  return ec;
+}
+
+// ----------------------------------------------------------------------
+
+TEnergyComponents NoC::getEnergyMMemLeakage(int cycles)
+{
+  TEnergyComponents ec;
+
+  ec.e_mmem_leakage += leak_pwr_mmemory * cycles / clock_frequency;
+
+  return ec;
+}
+
+// ----------------------------------------------------------------------
+
+TEnergyComponents NoC::getEnergyLMemLeakage(int ncores, int cycles)
+{
+  TEnergyComponents ec;
+
+  ec.e_lmem_leakage += ncores * leak_pwr_lmemory * cycles / clock_frequency;
+  
+  return ec;
+}
+
+// ----------------------------------------------------------------------
+
+// We assume 5-port router (4 links: link to PE is not taken into account)
+TEnergyComponents NoC::getEnergyCommLeakage(int nrouters, int cycles)
+{
+  TEnergyComponents ec;
+
+  ec.e_comm_leakage += ((nrouters * leak_pwr_router) + (nrouters * 4 * leak_pwr_link)) * cycles / clock_frequency;
+  
+  return ec;
+}
+
+// ----------------------------------------------------------------------
+
+TEnergyComponents NoC::getEnergyCompLeakage(int ncores, int cycles)
+{
+  TEnergyComponents ec;
+
+  ec.e_comp_leakage += ncores * leak_pwr_pe * cycles / clock_frequency;
   
   return ec;
 }

@@ -19,9 +19,13 @@ using namespace std;
 typedef struct EnergyComponents
 {
   double e_comm, e_mmem, e_lmem, e_comp;
-
+  double e_comm_leakage, e_mmem_leakage, e_lmem_leakage,  e_comp_leakage;
+  
   EnergyComponents() :
-    e_comm(0.0), e_mmem(0.0), e_lmem(0.0), e_comp(0.0) {}
+    e_comm(0.0), e_mmem(0.0), e_lmem(0.0), e_comp(0.0),
+    e_comm_leakage(0.0),
+    e_mmem_leakage(0.0), e_lmem_leakage(0.0),
+    e_comp_leakage(0.0) {}
 } TEnergyComponents;
 
 typedef struct LatencyComponents
@@ -60,6 +64,11 @@ class NoC
   double epb_mmemory; // in joule
   double epop_mac, epop_pool; // in joule
   double epb_lmemory; // in joule
+  double leak_pwr_lmemory; // in watt
+  double leak_pwr_mmemory; // in watt
+  double leak_pwr_router; // in watt
+  double leak_pwr_link; // in watt
+  double leak_pwr_pe; // in watt
   set<pair<int,int> > memory_interfaces;
 
   
@@ -94,6 +103,11 @@ class NoC
   TEnergyComponents getEnergyMAC(long nmac, int operand_size);
   TEnergyComponents getEnergyPool(long npool, int operand_size);
 
+  TEnergyComponents getEnergyMMemLeakage(int cycles);
+  TEnergyComponents getEnergyLMemLeakage(int ncores, int cycles);
+  TEnergyComponents getEnergyCommLeakage(int nrouters, int cycles);
+  TEnergyComponents getEnergyCompLeakage(int ncores, int cycles);
+
   int getMainMemoryBandwidth(); // memory bandwidth in byte per clock cycle
 
   
@@ -102,15 +116,14 @@ class NoC
   bool searchClock(ifstream& f, float& cf);
   bool searchNoCSize(ifstream& f, int& w, int& h);
   bool searchRouting(ifstream& f, int& ra);
-  bool searchLocalMemory(ifstream& f, int& lms, double& epb);
-  bool searchMainMemoryBW(ifstream& f, float& bw);
-  bool searchLink(ifstream& f, int& lw);
-  bool searchOPC(ifstream& f, int& n, int& m);
-  bool searchRouterLatency(ifstream& f, int& rl);
+  bool searchLocalMemory(ifstream& f, int& lms, double& epb, double& leakpwr);
+  bool searchMainMemory(ifstream& f, float& bw, double& epb, double& leakpwr);
+  bool searchPE(ifstream& f, int& macopc, int& poolopc,
+		double& epop_mac, double& epop_pool,
+		double& leakpwr);
+  bool searchRouter(ifstream& f, int& rl, double& epb, double& leakpwr);
+  bool searchLink(ifstream& f, int& lw, double& epb, double& leakpwr);
   bool searchMemoryInterfaces(ifstream& f, set<pair<int,int> >& mi);
-  bool searchEPBNoC(ifstream& f, double& epb_link, double& epb_router);
-  bool searchEPOP(ifstream& f, double& epop_mac, double& epop_pool);
-  bool searchEPBMem(ifstream& f, double& epb_mem);
   
   int coord2node(const pair<int,int>& coord);
   pair<int,int> node2coord(int node);
