@@ -85,6 +85,9 @@ class NoC
   int getNumberOfMIs();
 
   TLatencyComponents getLatencyM2C(long nbytes, int dst_first, int dst_last);
+  
+  TLatencyComponents getLatencyC2M(long nbytes, int src_first, int src_last);
+
   TLatencyComponents getLatencyC2C(long nbytes,
 				   int src_first, int src_last,
 				   int dst_first, int dst_last);
@@ -97,6 +100,8 @@ class NoC
   
   TEnergyComponents getEnergyM2C(long nbytes, int dst_first, int dst_last,
 				 bool same_data);
+  TEnergyComponents getEnergyC2M(long nbytes_lm, long nbytes_mm,
+				 int src_first, int src_last);
   TEnergyComponents getEnergyC2C(long nbytes,
 				 int src_first, int src_last,
 				 int dst_first, int dst_last);

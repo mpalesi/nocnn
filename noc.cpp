@@ -639,6 +639,9 @@ double NoC::getBottleneckLinkCapacity(int src_node, int dst_node,
 
 long NoC::getCommunicationLatency(int src_node, int dst_node, long nbytes)
 {
+  if (nbytes == 0)
+    return 0;
+  
   double link_bw = getBottleneckLinkCapacity(src_node, dst_node, nbytes);
 
   /*
@@ -720,6 +723,46 @@ TLatencyComponents NoC::getLatencyM2C(long nbytes, int dst_first, int dst_last)
     }
   
   // additional cycles to load data from main memory
+  int mem_latency = nbytes/getMainMemoryBandwidth(); 
+
+  TLatencyComponents lc;
+  lc.l_comm = max_latency;
+  lc.l_mmem = mem_latency;
+
+  return lc;
+}
+
+// ----------------------------------------------------------------------
+
+TLatencyComponents NoC::getLatencyC2M(long nbytes, int src_first, int src_last)
+{
+  // map communications to links
+  resetLinks();
+
+  map<int,int> closest_mi;
+  
+  for (int s=src_first; s<=src_last; s++)
+    {
+      int src_node = pe2node.at(s);
+      int dst_node = closestMI(src_node);
+      closest_mi[src_node] = dst_node;
+
+      addCommunication(src_node, dst_node, nbytes);
+    }
+
+  // compute max latency
+  long max_latency = -1;
+  for (int s=src_first; s<=src_last; s++)
+    {
+      int src_node = pe2node.at(s);
+
+      long latency = getCommunicationLatency(src_node, closest_mi[src_node], nbytes);
+      
+      if (latency > max_latency)
+	max_latency = latency;
+    }
+  
+  // additional cycles to write data from main memory
   int mem_latency = nbytes/getMainMemoryBandwidth(); 
 
   TLatencyComponents lc;
@@ -898,6 +941,29 @@ TEnergyComponents NoC::getEnergyM2C(long nbytes, int dst_first, int dst_last,
   return ec;
 }
   
+// ----------------------------------------------------------------------
+
+TEnergyComponents NoC::getEnergyC2M(long nbytes_lm, long nbytes_mm,
+				    int src_first, int src_last)
+{
+  TEnergyComponents ec;
+
+  for (int s=src_first; s<=src_last; s++)
+    {
+      int d = closestMI(pe2node.at(s));
+
+      int distance = getDistance(pe2node.at(s), d);
+
+      ec.e_mmem += computeEnergyMMem(nbytes_mm);
+      
+      ec.e_lmem += computeEnergyLMem(nbytes_lm);
+      
+      ec.e_comm += computeEnergyComm(distance, nbytes_mm);
+    }
+
+  return ec;
+}
+
 // ----------------------------------------------------------------------
 
 TEnergyComponents NoC::getEnergyC2C(long nbytes,
