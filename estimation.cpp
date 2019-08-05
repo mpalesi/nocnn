@@ -16,17 +16,24 @@ int Estimation::requiredCores(int ntasks)
 
 void Estimation::stimeLoadFeatureMap(int layer_no, TLayer& layer,
 				     TLayerStat& layer_stat,
-				     int nactive_cores)
+				     int nactive_cores,
+				     bool depthwiseconv)
 {
   // Estimate time and energy to load the input feature map
   if (layer_no == 0)
     {
-      // the input feature map is stored into memory      
-      LatencyComponents lc = noc.getLatencyM2C(layer.input_fm.getSize(),
+      // the input feature map is stored into memory
+
+      // For depthwise convolution layer each filter is applied to a
+      // single channel of the input feature map
+      int in_fm_size = (depthwiseconv) ?
+	layer.input_fm.getSize()/layer.input_fm.ch : layer.input_fm.getSize();
+      
+      LatencyComponents lc = noc.getLatencyM2C(in_fm_size,
 					       0, nactive_cores-1);
       layer_stat.addLatencyComponents(lc);
       
-      EnergyComponents ec = noc.getEnergyM2C(layer.input_fm.getSize(),
+      EnergyComponents ec = noc.getEnergyM2C(in_fm_size,
 					     0, nactive_cores-1, true);
       layer_stat.addEnergyComponents(ec);
 
@@ -37,46 +44,87 @@ void Estimation::stimeLoadFeatureMap(int layer_no, TLayer& layer,
       // The input feature map is spread over the active cores in the
       // previous layer
 
-      if (history[layer_no-1].per_core_fm_size > noc.local_memory_size)
+      if (depthwiseconv)
 	{
-	  // the output feature map computed in the prvious layer is
-	  // stored partially into local memory and partially into
-	  // main memory.
-	  int per_core_fm_size_from_memory = layer.input_fm.getSize() - noc.local_memory_size; // history[layer_no-1].per_core_fm_size - noc.local_memory_size;
-	  int per_core_fm_size_from_core   = noc.local_memory_size; // history[layer_no-1].per_core_fm_size; // noc.local_memory_size;
- 
+	  // A PE needs a number of the channels of the input feature
+	  // map equal to the number of filtes mapped on it
+	  int size_ofm_per_pe_pl = history[layer_no-1].per_core_fm_size;
+	  int ifm_single_channel_size = layer.input_fm.getSize()/layer.input_fm.ch;
+	  int number_of_ifm_channels_per_pe_cl = layer.filter.nf / nactive_cores;
+	  int onchip_stored_ifm_per_pe, offchip_stored_ifm_per_pe;
+
+	  if (size_ofm_per_pe_pl > noc.local_memory_size)
+	    {
+	      onchip_stored_ifm_per_pe  = noc.local_memory_size;
+	      offchip_stored_ifm_per_pe = size_ofm_per_pe_pl - noc.local_memory_size; 
+	    }
+	  else
+	    {
+	      onchip_stored_ifm_per_pe = size_ofm_per_pe_pl;
+	      offchip_stored_ifm_per_pe = 0;
+	    }
+	  
 	  TEnergyComponents ec;
 
-	  ec = noc.getEnergyM2C(per_core_fm_size_from_memory,
-				0, nactive_cores-1, true);
+	  ec = noc.getEnergyM2C(offchip_stored_ifm_per_pe,
+				0, nactive_cores-1, false);
 	  layer_stat.addEnergyComponents(ec);
-	    
-	  ec = noc.getEnergyC2C(per_core_fm_size_from_core,
+	  
+	  ec = noc.getEnergyC2C(onchip_stored_ifm_per_pe,
 				0, history[layer_no-1].nactive_cores-1,
 				0, nactive_cores-1);
 	  layer_stat.addEnergyComponents(ec);
-	  
 
-	  TLatencyComponents lc = noc.getLatencyMC2C(per_core_fm_size_from_memory,
-						     per_core_fm_size_from_core,
+	  TLatencyComponents lc = noc.getLatencyMC2C(offchip_stored_ifm_per_pe,
+						     onchip_stored_ifm_per_pe,
 						     0, history[layer_no-1].nactive_cores-1,
 						     0, nactive_cores-1);
 	  layer_stat.addLatencyComponents(lc);
 	  
-	  layer_stat.main_memory_traffic_load += per_core_fm_size_from_memory;
+	  layer_stat.main_memory_traffic_load += offchip_stored_ifm_per_pe * nactive_cores;	  
 	}
       else
 	{
-	  // the output feature map computed in the prvious layer is stored into the local memory
-	  TLatencyComponents lc = noc.getLatencyC2C(history[layer_no-1].per_core_fm_size,
-						    0, history[layer_no-1].nactive_cores-1,
-						    0, nactive_cores-1);
-	  layer_stat.addLatencyComponents(lc);
+	  if (history[layer_no-1].per_core_fm_size > noc.local_memory_size)
+	    {
+	      // the output feature map computed in the prvious layer is
+	      // stored partially into local memory and partially into
+	      // main memory.
+	      int per_core_fm_size_from_memory = layer.input_fm.getSize() - noc.local_memory_size; 
+	      int per_core_fm_size_from_core   = noc.local_memory_size; 
+ 
+	      TEnergyComponents ec;
+
+	      ec = noc.getEnergyM2C(per_core_fm_size_from_memory,
+				    0, nactive_cores-1, true);
+	      layer_stat.addEnergyComponents(ec);
 	  
-	  TEnergyComponents ec = noc.getEnergyC2C(history[layer_no-1].per_core_fm_size,
-						  0, history[layer_no-1].nactive_cores-1,
-						  0, nactive_cores-1);
-	  layer_stat.addEnergyComponents(ec);
+	      ec = noc.getEnergyC2C(per_core_fm_size_from_core,
+				    0, history[layer_no-1].nactive_cores-1,
+				    0, nactive_cores-1);
+	      layer_stat.addEnergyComponents(ec);	  
+
+	      TLatencyComponents lc = noc.getLatencyMC2C(per_core_fm_size_from_memory,
+							 per_core_fm_size_from_core,
+							 0, history[layer_no-1].nactive_cores-1,
+							 0, nactive_cores-1);
+	      layer_stat.addLatencyComponents(lc);
+	  
+	      layer_stat.main_memory_traffic_load += per_core_fm_size_from_memory;
+	    }
+	  else
+	    {
+	      // the output feature map computed in the prvious layer is stored into the local memory
+	      TLatencyComponents lc = noc.getLatencyC2C(history[layer_no-1].per_core_fm_size,
+							0, history[layer_no-1].nactive_cores-1,
+							0, nactive_cores-1);
+	      layer_stat.addLatencyComponents(lc);
+	  
+	      TEnergyComponents ec = noc.getEnergyC2C(history[layer_no-1].per_core_fm_size,
+						      0, history[layer_no-1].nactive_cores-1,
+						      0, nactive_cores-1);
+	      layer_stat.addEnergyComponents(ec);
+	    }
 	}
     }
 }
@@ -144,7 +192,8 @@ void Estimation::stimeStoreFeatureMap(TLayer& layer, TLayerStat& layer_stat,
 // ----------------------------------------------------------------------
 
 void Estimation::stimeConv(int layer_no, TLayer& layer,
-			   TLayerStat& layer_stat)
+			   TLayerStat& layer_stat,
+			   bool depthwiseconv)
 {
   // Initialize stat structure
   layer_stat.reset();
@@ -152,11 +201,11 @@ void Estimation::stimeConv(int layer_no, TLayer& layer,
   int nactive_cores = requiredCores(layer.filter.nf);
 
   // Estimate time and energy to load the input feature map
-  stimeLoadFeatureMap(layer_no, layer, layer_stat, nactive_cores);
+  stimeLoadFeatureMap(layer_no, layer, layer_stat, nactive_cores, depthwiseconv);
 
     
   // Estimate time and energy to load the filters
-  int per_core_filters_size = layer.filter.getSizeAll() / nactive_cores;
+  int per_core_filters_size = layer.filter.getSizeAll() / layer.compression_ratio / nactive_cores;
 
   TLatencyComponents lc = noc.getLatencyM2C(per_core_filters_size,
 					    0, nactive_cores-1);
@@ -167,14 +216,15 @@ void Estimation::stimeConv(int layer_no, TLayer& layer,
 			0, nactive_cores-1, false);
   layer_stat.addEnergyComponents(ec);
 
-  layer_stat.main_memory_traffic_load += layer.filter.getSizeSingle()*layer.filter.nf;
+  layer_stat.main_memory_traffic_load += layer.filter.getSizeSingle()*layer.filter.nf / layer.compression_ratio;
 
   
   // Estimate time and energy to compute the output feature map
   double per_core_filters = (double)layer.filter.nf / nactive_cores;
+  int nch = (depthwiseconv) ? 1 : layer.input_fm.ch;
   long nmac_per_core = (int)(per_core_filters *
-		       (layer.filter.w * layer.filter.h * layer.input_fm.ch) *
-		       (layer.output_fm.w * layer.output_fm.h));
+			     (layer.filter.w * layer.filter.h * nch) *
+			     (layer.output_fm.w * layer.output_fm.h));
   
   lc = noc.getLatencyMAC(nmac_per_core);
   layer_stat.addLatencyComponents(lc);
@@ -216,13 +266,13 @@ void Estimation::stimeFC(int layer_no, TLayer& layer,
 
   
   // Estimate time and energy to load the input feature map
-  stimeLoadFeatureMap(layer_no, layer, layer_stat, nactive_cores);
+  stimeLoadFeatureMap(layer_no, layer, layer_stat, nactive_cores, false);
 
   
   // Estimate time and energy to load the weights
   int weights_size_per_neuron = layer.input_fm.w *
     layer.input_fm.h *
-    layer.input_fm.ch * layer.fc.bits / 8;
+    layer.input_fm.ch * layer.fc.bits / 8 / layer.compression_ratio;
   double neurons_per_core = (double)layer.fc.n / nactive_cores;
   int weights_size_per_core = (int)(weights_size_per_neuron * neurons_per_core);
 					   
@@ -280,7 +330,7 @@ void Estimation::stimePool(int layer_no, TLayer& layer,
   int nactive_cores = requiredCores(layer.input_fm.ch);
   
   // Estimate time and energy to load the input feature map
-  stimeLoadFeatureMap(layer_no, layer, layer_stat, nactive_cores);
+  stimeLoadFeatureMap(layer_no, layer, layer_stat, nactive_cores, false);
 
   // Estimate time and energy to compute the output feature map
   int per_core_channels = layer.input_fm.ch / nactive_cores;
@@ -322,7 +372,11 @@ bool Estimation::stime(int layer_no, TLayer& layer, TLayerStat& layer_stat)
   switch (layer.ltype)
     {
     case LT_CONV:
-      stimeConv(layer_no, layer, layer_stat);
+      stimeConv(layer_no, layer, layer_stat, false);
+      return true;
+
+    case LT_CONV_DW:
+      stimeConv(layer_no, layer, layer_stat, true);
       return true;
       
     case LT_FC:

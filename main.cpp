@@ -12,13 +12,14 @@ typedef struct CommandLine
 {
   string cnn_filename;
   string noc_filename;
+  string compression_filename;
 } TCommandLine;
 
 // ----------------------------------------------------------------------
 
 void ShowCommandLineOptions(char* app_name)
 {
-  cerr << "Use " << app_name << " <cnn file name> <noc file name>" << endl;
+  cerr << "Use " << app_name << " <cnn file name> <noc file name> [<weights compression rate file name>]" << endl;
 }
 
 // ----------------------------------------------------------------------
@@ -27,7 +28,7 @@ TCommandLine ProcessCommandLine(int argc, char* argv[])
 {
   TCommandLine cl;
 
-  if (argc != 3)
+  if (argc < 3)
     {
       ShowCommandLineOptions(argv[0]);
       exit(-1);
@@ -35,6 +36,9 @@ TCommandLine ProcessCommandLine(int argc, char* argv[])
   
   cl.cnn_filename = string(argv[1]);
   cl.noc_filename = string(argv[2]);
+
+  if (argc == 4)
+    cl.compression_filename = string(argv[3]);
   
   return cl;
 }
@@ -46,11 +50,17 @@ int main(int argc, char* argv[])
   TCommandLine cl = ProcessCommandLine(argc, argv);
 
   CNN cnn;
-
   
   if (!cnn.loadCNN(cl.cnn_filename))
     {
       cerr << "Error loading " << cl.cnn_filename << endl;
+      return -1;
+    }
+  
+  if (cl.compression_filename != string("") &&
+      !cnn.loadCompressionRatios(cl.compression_filename))
+    {
+      cerr << "Error loading " << cl.compression_filename << endl;
       return -1;
     }
   

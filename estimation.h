@@ -172,7 +172,7 @@ private:
 
   void stimeLeakage(TLayerStat& layer_stat);
 
-  void stimeConv(int layer_no, TLayer& layer, TLayerStat& layer_stat);
+  void stimeConv(int layer_no, TLayer& layer, TLayerStat& layer_stat, bool depthwiseconv);
   void stimeFC(int layer_no, TLayer& layer, TLayerStat& layer_stat);
   void stimePool(int layer_no, TLayer& layer, TLayerStat& layer_stat);
 
@@ -180,7 +180,9 @@ private:
 
   void stimeLoadFeatureMap(int layer_no, TLayer& layer,
 			   TLayerStat& layer_stat,
-			   int nactive_cores);
+			   int nactive_cores,
+			   bool depthwiseconv);
+
   void stimeStoreFeatureMap(TLayer& layer, TLayerStat& layer_stat,
 			    int nactive_cores);
 

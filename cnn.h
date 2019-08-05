@@ -12,6 +12,7 @@ using namespace std;
 #define LT_FC       2
 #define LT_AVG_POOL 3
 #define LT_MAX_POOL 4
+#define LT_CONV_DW  5
 
 // ----------------------------------------------------------------------
 
@@ -19,7 +20,7 @@ typedef struct FeatureMap
 {
   int  w, h, ch; // width, height, and number of channels
   int  bits;
-
+ 
   int getSize() { // in bytes
     return w*h*ch*bits/8;
   }
@@ -72,9 +73,11 @@ typedef struct Layer
   TFeatureMap         input_fm;
   TFeatureMap         output_fm;
 
-  TConvAttr           filter; // valid for LT_CONV
+  TConvAttr           filter; // valid for LT_CONV and LT_CONV_DW
   TPoolAttr           pool;   // valid for LT_AVG_POOL and LT_MAX_POOL
   TFullyConnectedAttr fc;     // valid for LT_FC
+
+  double              compression_ratio; // weights compression ratio
 } TLayer;
 
 // ----------------------------------------------------------------------
@@ -87,6 +90,8 @@ class CNN
 
   bool loadCNN(const string& fname);
 
+  bool loadCompressionRatios(const string& fname);
+  
   void showCNN();
 
   string ltype2str(int ltype);
@@ -108,7 +113,10 @@ class CNN
 			    TPoolAttr& attr);
   void computeOutputFM(TLayer& layer);
 
-  long getWeightsSize(int layer);    
+  long getWeightsSize(int layer);
+
+  int findLayerName(const string& layer_name);
+  
 };
 
 // ----------------------------------------------------------------------

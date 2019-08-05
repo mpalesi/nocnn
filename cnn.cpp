@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include "cnn.h"
 
 // ----------------------------------------------------------------------
@@ -48,6 +49,8 @@ bool CNN::findLayer(ifstream& f, string& lname, int& ltype)
 	    ltype = LT_MAX_POOL;
 	  else if (strcmp(type_str, "fc") == 0)
 	    ltype = LT_FC;
+	  else if (strcmp(type_str, "convdw") == 0)
+	    ltype = LT_CONV_DW;
 	  else
 	    {
 	      cerr << "Invalid type '" << type_str << "'" << endl;
@@ -135,8 +138,8 @@ void CNN::computeOutputFM_Conv(TFeatureMap& ifm, TFeatureMap& ofm,
       py = 0;
     }
   
-  ofm.w = (ifm.w + 2*px - filter.w)/filter.stride + 1;
-  ofm.h = (ifm.h + 2*py - filter.h)/filter.stride + 1;
+  ofm.w = (int)ceil((double)(ifm.w + 2*px - filter.w)/filter.stride + 1);
+  ofm.h = (int)ceil((double)(ifm.h + 2*py - filter.h)/filter.stride + 1);
 
   ofm.ch = filter.nf;
 
@@ -172,6 +175,7 @@ void CNN::computeOutputFM(TLayer& layer)
   switch (layer.ltype)
     {
     case LT_CONV:
+    case LT_CONV_DW:
       computeOutputFM_Conv(layer.input_fm, layer.output_fm, layer.filter);
       break;
     case LT_FC:
@@ -200,7 +204,7 @@ bool CNN::loadCNN(const string& fname)
   
   if (!findInputSize(f, layer.input_fm))
     {
-      cerr << "Cennot find input size" << endl; 
+      cerr << "Cannot find input size" << endl; 
       return false;
     }
   
@@ -227,6 +231,15 @@ bool CNN::loadCNN(const string& fname)
 	      if (!readFCAttr(f, layer.fc))
 		return false;
 	    }
+	  else if (layer.ltype == LT_CONV_DW)
+	    {
+	      if (!readConvAttr(f, layer.filter))
+		return false;
+	      
+	      assert(layer.filter.nf == layer.input_fm.ch);
+	      
+	      layer.filter.ch = 1;
+	    }
 	  else
 	    {
 	      cerr << "Invalid layer type: " << layer.lname << " "
@@ -236,9 +249,56 @@ bool CNN::loadCNN(const string& fname)
 
 	  computeOutputFM(layer);
 
+	  layer.compression_ratio = 1.0; // default compression ratio
+	  
 	  layers.push_back(layer);
 	}
       
+    }
+  
+  return true;
+}
+
+// ----------------------------------------------------------------------
+
+int CNN::findLayerName(const string& layer_name)
+{
+  for (int i=0; i<layers.size(); i++)
+    if (layers[i].lname == layer_name)
+      return i;
+
+  return -1;
+}
+
+// ----------------------------------------------------------------------
+
+bool CNN::loadCompressionRatios(const string& fname)
+{
+  cout << "Reading " << fname << "..." << endl;
+  
+  ifstream f(fname);
+
+  if (f.fail())
+    return false;
+
+  string line;
+  char   layer_name[256];
+  double cr;
+  while (!f.eof())
+    {
+      getline(f, line);
+      if (sscanf(line.c_str(), "%s %lf", layer_name, &cr) == 2)
+	{
+	  int lidx = findLayerName(string(layer_name));
+	  if (lidx == -1)
+	    {
+	      cerr << "Invalid compressed layer name '" << layer_name
+		   << "'" << endl;
+	      return false;
+	    }
+	  else
+	    layers[lidx].compression_ratio = cr;	  
+	}
     }
   
   return true;
@@ -258,6 +318,8 @@ string CNN::ltype2str(int ltype)
       return "AVG-POOL";
     case LT_MAX_POOL:
       return "MAX-POOL";
+    case LT_CONV_DW:
+      return "CONV-DW";
     }
 
   return "???";
@@ -326,6 +388,8 @@ void CNN::showCNN()
 	   << layers[l].input_fm.w * layers[l].input_fm.h * layers[l].input_fm.ch * layers[l].input_fm.bits / 8 / 1024 << "/"
 	   << layers[l].output_fm.w * layers[l].output_fm.h * layers[l].output_fm.ch * layers[l].output_fm.bits / 8 / 1024 << " KBytes"
 	   << ", weights: " << getWeightsSize(l)/1024 << " KBytes"
+	   << ", compression ratio: " << layers[l].compression_ratio
+	   << " (compressed weights: " << getWeightsSize(l)/1024/layers[l].compression_ratio << " KBytes)"
 	   << endl;	
 
       cout << endl;
