@@ -84,7 +84,7 @@ class NoC
   int getNumberOfCores();
   int getNumberOfMIs();
 
-  TLatencyComponents getLatencyM2C(long nbytes, int dst_first, int dst_last);
+  TLatencyComponents getLatencyM2C(long nbytes, int dst_first, int dst_last, bool same_data);
   
   TLatencyComponents getLatencyC2M(long nbytes, int src_first, int src_last);
 

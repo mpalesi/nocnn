@@ -30,7 +30,7 @@ void Estimation::stimeLoadFeatureMap(int layer_no, TLayer& layer,
 	layer.input_fm.getSize()/layer.input_fm.ch : layer.input_fm.getSize();
       
       LatencyComponents lc = noc.getLatencyM2C(in_fm_size,
-					       0, nactive_cores-1);
+					       0, nactive_cores-1, true);
       layer_stat.addLatencyComponents(lc);
       
       EnergyComponents ec = noc.getEnergyM2C(in_fm_size,
@@ -201,6 +201,7 @@ void Estimation::stimeConv(int layer_no, TLayer& layer,
   int nactive_cores = requiredCores(layer.filter.nf);
 
   // Estimate time and energy to load the input feature map
+  
   stimeLoadFeatureMap(layer_no, layer, layer_stat, nactive_cores, depthwiseconv);
 
     
@@ -208,7 +209,7 @@ void Estimation::stimeConv(int layer_no, TLayer& layer,
   int per_core_filters_size = layer.filter.getSizeAll() / layer.compression_ratio / nactive_cores;
 
   TLatencyComponents lc = noc.getLatencyM2C(per_core_filters_size,
-					    0, nactive_cores-1);
+					    0, nactive_cores-1, false);
   layer_stat.addLatencyComponents(lc);
 
   TEnergyComponents ec;
@@ -277,7 +278,7 @@ void Estimation::stimeFC(int layer_no, TLayer& layer,
   int weights_size_per_core = (int)(weights_size_per_neuron * neurons_per_core);
 					   
   TLatencyComponents lc = noc.getLatencyM2C(weights_size_per_core,
-					    0, nactive_cores-1);
+					    0, nactive_cores-1, false);
   layer_stat.addLatencyComponents(lc);
 
   TEnergyComponents ec;

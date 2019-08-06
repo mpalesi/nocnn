@@ -694,7 +694,8 @@ int NoC::closestMI(int node)
 
 // ----------------------------------------------------------------------
 
-TLatencyComponents NoC::getLatencyM2C(long nbytes, int dst_first, int dst_last)
+TLatencyComponents NoC::getLatencyM2C(long nbytes, int dst_first, int dst_last,
+				      bool same_data)
 {
   // map communications to links
   resetLinks();
@@ -723,7 +724,7 @@ TLatencyComponents NoC::getLatencyM2C(long nbytes, int dst_first, int dst_last)
     }
   
   // additional cycles to load data from main memory
-  int mem_latency = nbytes/getMainMemoryBandwidth(); 
+  int mem_latency = (same_data) ? nbytes/getMainMemoryBandwidth() : (dst_last-dst_first+1)*(nbytes/getMainMemoryBandwidth()); 
 
   TLatencyComponents lc;
   lc.l_comm = max_latency;
@@ -762,8 +763,8 @@ TLatencyComponents NoC::getLatencyC2M(long nbytes, int src_first, int src_last)
 	max_latency = latency;
     }
   
-  // additional cycles to write data from main memory
-  int mem_latency = nbytes/getMainMemoryBandwidth(); 
+  // additional cycles to write data to main memory
+  int mem_latency = (src_last-src_first+1)*(nbytes/getMainMemoryBandwidth()); 
 
   TLatencyComponents lc;
   lc.l_comm = max_latency;
