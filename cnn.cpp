@@ -28,6 +28,21 @@ bool CNN::findInputSize(ifstream& f, TFeatureMap& fm)
 
 // ----------------------------------------------------------------------
 
+bool CNN::findFeatureMapBitSize(ifstream& f, int& fmbs)
+{
+  string line;
+  while (!f.eof())
+    {
+      getline(f, line);
+      if (sscanf(line.c_str(), "fm_bitsize: %d", &fmbs) == 1)
+	return true;
+    }
+
+  return false;
+}
+
+// ----------------------------------------------------------------------
+
 bool CNN::findLayer(ifstream& f, string& lname, int& ltype)
 {
   string line;
@@ -143,7 +158,7 @@ void CNN::computeOutputFM_Conv(TFeatureMap& ifm, TFeatureMap& ofm,
 
   ofm.ch = filter.nf;
 
-  ofm.bits = (ifm.bits > filter.bits) ? ifm.bits : filter.bits;
+  ofm.bits = fm_bit_size; // (ifm.bits > filter.bits) ? ifm.bits : filter.bits;
 }
 
 // ----------------------------------------------------------------------
@@ -207,7 +222,13 @@ bool CNN::loadCNN(const string& fname)
       cerr << "Cannot find input size" << endl; 
       return false;
     }
-  
+
+  if (!findFeatureMapBitSize(f, fm_bit_size))
+    {
+      cerr << "Cannot find featuremap bit size" << endl; 
+      return false;
+    }
+
   while (!f.eof())
     {
       if (layers.size() != 0)

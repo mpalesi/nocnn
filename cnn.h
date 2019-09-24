@@ -101,6 +101,7 @@ class CNN
  private:
   
   bool findInputSize(ifstream& f, TFeatureMap& fm);
+  bool findFeatureMapBitSize(ifstream& f, int& fmbs);
   bool findLayer(ifstream& f, string& lname, int& ltype);
   bool readConvAttr(ifstream& f, TConvAttr& attr);
   bool readPoolAttr(ifstream& f, TPoolAttr& attr);
@@ -116,6 +117,8 @@ class CNN
   long getWeightsSize(int layer);
 
   int findLayerName(const string& layer_name);
+
+  int fm_bit_size;
   
 };
 
