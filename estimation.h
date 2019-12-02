@@ -28,8 +28,9 @@ typedef struct LayerStat
   int          active_cores;
   long         ops_per_core;
   
-  long         main_memory_traffic_load;
-  long         main_memory_traffic_store;
+  long         main_memory_traffic_load_w;
+  long         main_memory_traffic_load_ifm;
+  long         main_memory_traffic_store_ofm;
   
   void reset() {
     comm_latency = 0;
@@ -49,8 +50,9 @@ typedef struct LayerStat
     active_cores = 0;
     ops_per_core = 0;
   
-    main_memory_traffic_load  = 0;
-    main_memory_traffic_store = 0;
+    main_memory_traffic_load_w    = 0;
+    main_memory_traffic_load_ifm  = 0;
+    main_memory_traffic_store_ofm = 0;
   }
 
   void addLatencyComponents(TLatencyComponents lc) {
@@ -88,8 +90,9 @@ typedef struct GlobalStats
   double             total_comm_energy_leakage;
   double             total_comp_energy_leakage;
   
-  long               total_main_memory_traffic_load;
-  long               total_main_memory_traffic_store;
+  long               total_main_memory_traffic_load_w;
+  long               total_main_memory_traffic_load_ifm;
+  long               total_main_memory_traffic_store_ofm;
   
   vector<TLayerStat> layer_stats;
 
@@ -108,8 +111,9 @@ typedef struct GlobalStats
     total_comm_energy_leakage = 0.0;
     total_comp_energy_leakage = 0.0;
     
-    total_main_memory_traffic_load  = 0;
-    total_main_memory_traffic_store = 0;
+    total_main_memory_traffic_load_w    = 0;
+    total_main_memory_traffic_load_ifm  = 0;
+    total_main_memory_traffic_store_ofm = 0;
     
     layer_stats.clear();
   }
@@ -130,8 +134,9 @@ typedef struct GlobalStats
     total_comm_energy_leakage += ls.comm_energy_leakage;
     total_comp_energy_leakage += ls.comp_energy_leakage;
     
-    total_main_memory_traffic_load += ls.main_memory_traffic_load;
-    total_main_memory_traffic_store += ls.main_memory_traffic_store;	
+    total_main_memory_traffic_load_w += ls.main_memory_traffic_load_w;
+    total_main_memory_traffic_load_ifm += ls.main_memory_traffic_load_ifm;
+    total_main_memory_traffic_store_ofm += ls.main_memory_traffic_store_ofm;
   }
   
 } TGlobalStats;

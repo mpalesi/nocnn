@@ -37,7 +37,7 @@ void Estimation::stimeLoadFeatureMap(int layer_no, TLayer& layer,
 					     0, nactive_cores-1, true);
       layer_stat.addEnergyComponents(ec);
 
-      layer_stat.main_memory_traffic_load += layer.input_fm.getSize();
+      layer_stat.main_memory_traffic_load_ifm += layer.input_fm.getSize();
     }
   else
     {
@@ -81,7 +81,7 @@ void Estimation::stimeLoadFeatureMap(int layer_no, TLayer& layer,
 						     0, nactive_cores-1);
 	  layer_stat.addLatencyComponents(lc);
 	  
-	  layer_stat.main_memory_traffic_load += offchip_stored_ifm_per_pe * nactive_cores;	  
+	  layer_stat.main_memory_traffic_load_ifm += offchip_stored_ifm_per_pe * nactive_cores;	  
 	}
       else
 	{
@@ -110,7 +110,7 @@ void Estimation::stimeLoadFeatureMap(int layer_no, TLayer& layer,
 							 0, nactive_cores-1);
 	      layer_stat.addLatencyComponents(lc);
 	  
-	      layer_stat.main_memory_traffic_load += per_core_fm_size_from_memory;
+	      layer_stat.main_memory_traffic_load_ifm += per_core_fm_size_from_memory;
 	    }
 	  else
 	    {
@@ -186,7 +186,7 @@ void Estimation::stimeStoreFeatureMap(TLayer& layer, TLayerStat& layer_stat,
 					  0, nactive_cores-1);
   layer_stat.addEnergyComponents(ec);
 
-  layer_stat.main_memory_traffic_store += output_feature_map_mmem;
+  layer_stat.main_memory_traffic_store_ofm += output_feature_map_mmem;
 }
 
 // ----------------------------------------------------------------------
@@ -217,7 +217,7 @@ void Estimation::stimeConv(int layer_no, TLayer& layer,
 			0, nactive_cores-1, false);
   layer_stat.addEnergyComponents(ec);
 
-  layer_stat.main_memory_traffic_load += layer.filter.getSizeSingle()*layer.filter.nf / layer.compression_ratio;
+  layer_stat.main_memory_traffic_load_w += layer.filter.getSizeSingle()*layer.filter.nf / layer.compression_ratio;
 
   
   // Estimate time and energy to compute the output feature map
@@ -286,7 +286,7 @@ void Estimation::stimeFC(int layer_no, TLayer& layer,
 			0, nactive_cores-1, false);
   layer_stat.addEnergyComponents(ec);
 
-  layer_stat.main_memory_traffic_load += weights_size_per_core * nactive_cores;
+  layer_stat.main_memory_traffic_load_w += weights_size_per_core * nactive_cores;
 
   // Estimate time and energy to compute the output feature map
   int nmac_per_core = (int)(neurons_per_core *
@@ -427,13 +427,13 @@ void Estimation::hline(int n, char c)
 #define DOUBLE_FORMAT(x) std::scientific <<std::setprecision(2)<<(x)
 void Estimation::showStats(TGlobalStats& stats)
 {
-  hline(177, '-');
+  hline(189, '-');
 
   cout << setw(16) << "Layer"
        << setw(10) << "Type"
        << setw(30) << "Latency (cycles)"
        << setw(80) << "Energy (Joule)"
-       << setw(24) << "Mem traffic (bytes)"
+       << setw(36) << "Mem traffic (bytes)"
        << setw(8)  << "Cores"
        << setw(9) << "OPs"
        << endl;
@@ -450,13 +450,14 @@ void Estimation::showStats(TGlobalStats& stats)
        << setw(10) << "LMemLeak"
        << setw(10) << "MMem"
        << setw(10) << "MMemLeak"
-       << setw(12) << "Load"
-       << setw(12) << "Store"
+       << setw(12) << "Load W"
+       << setw(12) << "Load IFM"
+       << setw(12) << "Store OFM"
        << setw(8)  << ""
        << setw(9)  << "per core"
        << endl;
   
-  hline(177, '=');
+  hline(189, '=');
   
   for (int l=0; l<cnn.layers.size(); l++)
     {
@@ -473,14 +474,15 @@ void Estimation::showStats(TGlobalStats& stats)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].lmem_energy_leakage)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].mmem_energy)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].mmem_energy_leakage)
-	   << setw(12) << stats.layer_stats[l].main_memory_traffic_load
-	   << setw(12) << stats.layer_stats[l].main_memory_traffic_store
+	   << setw(12) << stats.layer_stats[l].main_memory_traffic_load_w
+	   << setw(12) << stats.layer_stats[l].main_memory_traffic_load_ifm
+	   << setw(12) << stats.layer_stats[l].main_memory_traffic_store_ofm
 	   << setw(8)  << stats.layer_stats[l].active_cores
 	   << setw(9)  << stats.layer_stats[l].ops_per_core
 	   << endl;
     }
 
-  hline(177, '-');
+  hline(189, '-');
 
   cout << setw(16+10) << "TOTAL"
        << setw(10) << stats.total_comm_latency
@@ -494,9 +496,10 @@ void Estimation::showStats(TGlobalStats& stats)
        << setw(10) << DOUBLE_FORMAT(stats.total_lmem_energy_leakage)
        << setw(10) << DOUBLE_FORMAT(stats.total_mmem_energy)
        << setw(10) << DOUBLE_FORMAT(stats.total_mmem_energy_leakage)
-       << setw(12) << stats.total_main_memory_traffic_load
-       << setw(12) << stats.total_main_memory_traffic_store
+       << setw(12) << stats.total_main_memory_traffic_load_w
+       << setw(12) << stats.total_main_memory_traffic_load_ifm
+       << setw(12) << stats.total_main_memory_traffic_store_ofm
        << endl;
 
-  hline(177, '-');
+  hline(189, '-');
 }
