@@ -14,16 +14,22 @@ using namespace std;
 #define ROUTING_XY 1
 #define ROUTING_FA 2
 
+#define LT_WIRED    1
+#define LT_WIRELESS 2
+
 // ----------------------------------------------------------------------
 
 typedef struct EnergyComponents
 {
-  double e_comm, e_mmem, e_lmem, e_comp;
-  double e_comm_leakage, e_mmem_leakage, e_lmem_leakage,  e_comp_leakage;
+  double e_comm_wired, e_comm_wireless;
+  double e_mmem, e_lmem, e_comp;
+  double e_comm_wired_leakage, e_comm_wireless_leakage;
+  double e_mmem_leakage, e_lmem_leakage,  e_comp_leakage;
   
   EnergyComponents() :
-    e_comm(0.0), e_mmem(0.0), e_lmem(0.0), e_comp(0.0),
-    e_comm_leakage(0.0),
+    e_comm_wired(0.0), e_comm_wireless(0.0),
+    e_mmem(0.0), e_lmem(0.0), e_comp(0.0),
+    e_comm_wired_leakage(0.0), e_comm_wireless_leakage(0.0),
     e_mmem_leakage(0.0), e_lmem_leakage(0.0),
     e_comp_leakage(0.0) {}
 } TEnergyComponents;
@@ -40,40 +46,60 @@ typedef struct LatencyComponents
 
 typedef struct LinkAttr
 {
-  long ncomms; // number of communications using the link
-  long total_load; 
+  int      link_type; // LT_WIRED, LT_WIRELESS
+  // NOT USED!  long ncomms;    // number of communications using the link
+  set<int> comm_ids; // set of ids of communications that pass on the link
+  long     total_load; // in bytes
 } TLinkAttr;
 
 typedef map<pair<int,int>, TLinkAttr> TLinks;
 
+typedef vector<pair<int,int> > TPath;
+
 // ----------------------------------------------------------------------
+
+typedef pair<int,int> TCoordinate;
+typedef set<int> TNodeSet;
+typedef map<string, TNodeSet> TRadioHubSet;
 
 class NoC
 {
  public:
 
-  float  clock_frequency; // in Hz
-  int    mesh_width, mesh_height;
-  int    routing;
-  int    local_memory_size; // in bytes
-  int    link_width; // in bits
-  int    macopc, poolopc;
-  int    router_latency; // in clock cycles
-  float  memory_bandwidth; // in Bps
-  double epb_link, epb_router; // in joule
-  double epb_mmemory; // in joule
-  double epop_mac, epop_pool; // in joule
-  double epb_lmemory; // in joule
-  double leak_pwr_lmemory; // in watt
-  double leak_pwr_mmemory; // in watt
-  double leak_pwr_router; // in watt
-  double leak_pwr_link; // in watt
-  double leak_pwr_pe; // in watt
-  set<pair<int,int> > memory_interfaces;
+  float        clock_frequency; // in Hz
+  int          mesh_width, mesh_height;
+  int          routing;
+  int          local_memory_size; // in bytes
+  int          link_width; // in bits
+  int          macopc, poolopc;
+  int          router_latency; // in clock cycles
+  float        memory_bandwidth; // in Bps
+  double       epb_link, epb_router; // in joule
+  double       epb_mmemory; // in joule
+  double       epop_mac, epop_pool; // in joule
+  double       epb_lmemory; // in joule
+  double       epb_wireless; // in joule
+  double       leak_pwr_lmemory; // in watt
+  double       leak_pwr_mmemory; // in watt
+  double       leak_pwr_router; // in watt
+  double       leak_pwr_link; // in watt
+  double       leak_pwr_pe; // in watt
+  double       leak_pwr_wireless; // in watt
+  TNodeSet     memory_interfaces;
+  TRadioHubSet radio_hubs;
+  float        wireless_bandwidth; // in bps
+  bool         use_winoc;
+  bool         use_multicast;
 
   
  public:
 
+
+  void testRouting();
+  void testEnergy();
+  void testCommunication();
+  
+  
   NoC();
 
   bool loadNoC(const string& fname);
@@ -105,6 +131,9 @@ class NoC
   TEnergyComponents getEnergyC2C(long nbytes,
 				 int src_first, int src_last,
 				 int dst_first, int dst_last);
+  TEnergyComponents getEnergyMC2C(long nbytes,
+				  int src_first, int src_last,
+				  int dst_first, int dst_last);
   TEnergyComponents getEnergyMAC(long nmac, int operand_size);
   TEnergyComponents getEnergyPool(long npool, int operand_size);
 
@@ -127,36 +156,62 @@ class NoC
 		double& epop_mac, double& epop_pool,
 		double& leakpwr);
   bool searchRouter(ifstream& f, int& rl, double& epb, double& leakpwr);
+  bool searchMulticastUsage(ifstream& f);
   bool searchLink(ifstream& f, int& lw, double& epb, double& leakpwr);
-  bool searchMemoryInterfaces(ifstream& f, set<pair<int,int> >& mi);
-  
+  bool searchMemoryInterfaces(ifstream& f, TNodeSet& mi);
+  void searchRadioHubs(ifstream& f, TRadioHubSet& rh);
+  bool searchWiNoCData(ifstream& f, float& bw, double& epb, double& leakpwr);
+  bool searchWiNoCUsage(ifstream& f);
+
   int coord2node(const pair<int,int>& coord);
   pair<int,int> node2coord(int node);
   int node2pe(int node);
 
   int getDistance(int n1, int n2);
-  vector<pair<int,int> > getRoutingPath(int src_node, int dst_node);
-  vector<pair<int,int> > getRoutingPathXY(int src_node, int dst_node);
-  vector<pair<int,int> > getRoutingPathFA(int src_node, int dst_node);
-  
+  pair<int,int> getDistanceWiredWireless(int src_node, int dst_node);
+  int getNumberOfHops(int n1, int n2);
+
+  TPath getRoutingPath(int src_node, int dst_node);
+  TPath getRoutingPathXY(int src_node, int dst_node);
+  TPath getRoutingPathFA(int src_node, int dst_node);
+  TPath getRoutingPathXYWired(int src_node, int dst_node);
+  TPath getRoutingPathXYWireless(int src_node, int dst_node);
+
   int closestMI(int node);
+  pair<int,int> getClosestRHNode(int node);
 
   void resetLinks();
-  void addCommunication(int src_node, int dst_node, long nbytes);
+  void addCommunication(int src_node, int dst_node, long nbytes, int comm_id);
 
   double getBottleneckLinkCapacity(int src_node, int dst_node,
 				   long nbytes);
   long getCommunicationLatency(int src_node, int dst_node, long nbytes);
-    
-  void makeLinks();
-  void makePE2Node();
 
-  double computeEnergyComm(int dist, long nbytes);
+  void makeClosestMIMap();
+
+  void makeLinks();
+  void makeWiredLinks();
+  void makeWirelessLinks();
+
+  void makePE2Node();
+  void makeRH2Node();
+
+  pair<double,double> computeEnergyComm();
+  /* mau
+  pair<double,double> computeEnergyComm(int hops_wired, int hops_wireless,
+					long nbytes);
+  */
+  
   double computeEnergyLMem(long nbytes);
   double computeEnergyMMem(long nbytes);
+
   
-  TLinks links;
-  map<int,int> pe2node;
+  TLinks          links;
+  map<int,int>    pe2node;
+  map<string,int> rh2node;
+  map<int,int>    closest_mi;
+  
+  float           one_hop_wireless; // equivalent wired hops
 };
 
 #endif

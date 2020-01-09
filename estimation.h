@@ -15,14 +15,16 @@ typedef struct LayerStat
   long         comp_latency;
   long         mmem_latency;
 
-  double       comm_energy;
+  double       comm_wired_energy;
+  double       comm_wireless_energy;
   double       comp_energy;
   double       lmem_energy;
   double       mmem_energy;
 
   double       lmem_energy_leakage;
   double       mmem_energy_leakage;
-  double       comm_energy_leakage;
+  double       comm_wired_energy_leakage;
+  double       comm_wireless_energy_leakage;
   double       comp_energy_leakage;
   
   int          active_cores;
@@ -37,14 +39,16 @@ typedef struct LayerStat
     comp_latency = 0;
     mmem_latency = 0;
     
-    comm_energy  = 0.0;
+    comm_wired_energy  = 0.0;
+    comm_wireless_energy  = 0.0;
     comp_energy  = 0.0;
     lmem_energy  = 0.0;
     mmem_energy  = 0.0;
 
     lmem_energy_leakage = 0.0;
     mmem_energy_leakage = 0.0;
-    comm_energy_leakage = 0.0;
+    comm_wired_energy_leakage = 0.0;
+    comm_wireless_energy_leakage = 0.0;
     comp_energy_leakage = 0.0;
     
     active_cores = 0;
@@ -62,13 +66,15 @@ typedef struct LayerStat
   }
   
   void addEnergyComponents(TEnergyComponents ec) {
-    comm_energy += ec.e_comm;
+    comm_wired_energy += ec.e_comm_wired;
+    comm_wireless_energy += ec.e_comm_wireless;
     comp_energy += ec.e_comp;
     lmem_energy += ec.e_lmem;
     mmem_energy += ec.e_mmem;
     lmem_energy_leakage += ec.e_lmem_leakage;
     mmem_energy_leakage += ec.e_mmem_leakage;
-    comm_energy_leakage += ec.e_comm_leakage;
+    comm_wired_energy_leakage += ec.e_comm_wired_leakage;
+    comm_wireless_energy_leakage += ec.e_comm_wireless_leakage;
     comp_energy_leakage += ec.e_comp_leakage;
   }
   
@@ -80,14 +86,16 @@ typedef struct GlobalStats
   long               total_comp_latency;
   long               total_mmem_latency;
 
-  double             total_comm_energy;
+  double             total_comm_wired_energy;
+  double             total_comm_wireless_energy;
   double             total_comp_energy;
   double             total_mmem_energy;
   double             total_lmem_energy;
 
   double             total_mmem_energy_leakage;
   double             total_lmem_energy_leakage;
-  double             total_comm_energy_leakage;
+  double             total_comm_wired_energy_leakage;
+  double             total_comm_wireless_energy_leakage;
   double             total_comp_energy_leakage;
   
   long               total_main_memory_traffic_load_w;
@@ -101,14 +109,16 @@ typedef struct GlobalStats
     total_comp_latency = 0;
     total_mmem_latency = 0;
       
-    total_comm_energy  = 0.0;
+    total_comm_wired_energy  = 0.0;
+    total_comm_wireless_energy  = 0.0;
     total_comp_energy  = 0.0;
     total_mmem_energy  = 0.0;
     total_lmem_energy  = 0.0;
 
     total_mmem_energy_leakage = 0.0;
     total_lmem_energy_leakage = 0.0;
-    total_comm_energy_leakage = 0.0;
+    total_comm_wired_energy_leakage = 0.0;
+    total_comm_wireless_energy_leakage = 0.0;
     total_comp_energy_leakage = 0.0;
     
     total_main_memory_traffic_load_w    = 0;
@@ -124,14 +134,16 @@ typedef struct GlobalStats
     total_comp_latency += ls.comp_latency;
     total_mmem_latency += ls.mmem_latency;
 
-    total_comm_energy  += ls.comm_energy;
+    total_comm_wired_energy  += ls.comm_wired_energy;
+    total_comm_wireless_energy  += ls.comm_wireless_energy;
     total_comp_energy  += ls.comp_energy;
     total_mmem_energy  += ls.mmem_energy;
     total_lmem_energy  += ls.lmem_energy;
     
     total_mmem_energy_leakage += ls.mmem_energy_leakage;
     total_lmem_energy_leakage += ls.lmem_energy_leakage;
-    total_comm_energy_leakage += ls.comm_energy_leakage;
+    total_comm_wired_energy_leakage += ls.comm_wired_energy_leakage;
+    total_comm_wireless_energy_leakage += ls.comm_wireless_energy_leakage;
     total_comp_energy_leakage += ls.comp_energy_leakage;
     
     total_main_memory_traffic_load_w += ls.main_memory_traffic_load_w;

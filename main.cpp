@@ -79,6 +79,13 @@ int main(int argc, char* argv[])
   noc.showTopology();
 
 
+  //----- test wireless
+  //  noc.testRouting();
+  //  noc.testCommunication();
+  // return 0;
+  //-----
+
+  
   Estimation estimation(noc, cnn);
   TGlobalStats stats;
   if (estimation.stime(stats))
