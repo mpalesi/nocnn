@@ -81,8 +81,8 @@ int main(int argc, char* argv[])
 
   //----- test wireless
   //  noc.testRouting();
-  //  noc.testCommunication();
-  // return 0;
+  //    noc.testCommunication();
+  //    return 0;
   //-----
 
   

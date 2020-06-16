@@ -1,11 +1,11 @@
-layer1 1
+layer1 1.6
 
-layer2 1
+layer2 1.6
 
-layer3 1
+layer3 1.6
 
-layer4 1
+layer4 1.6
 
-layer5 4.0181
+layer5 1.6
 
-layer6 2.222
+layer6 1.6

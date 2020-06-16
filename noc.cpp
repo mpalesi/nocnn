@@ -78,6 +78,35 @@ bool NoC::searchRouting(ifstream& f, int& ra)
 
 // ----------------------------------------------------------------------
 
+bool NoC::searchNodeMapping(ifstream& f, int& nm)
+{
+  char rstr[256];
+  
+  f.clear();
+  f.seekg(0, ios::beg);
+
+  string line;
+  while (!f.eof())
+    {
+      getline(f, line);
+      if (sscanf(line.c_str(), "node_mapping: %s", rstr) == 1)
+	{
+	  if (strcmp(rstr, "zigzag") == 0)
+	    nm = MAP_ZIGZAG;
+	  else if (strcmp(rstr, "diagonal") == 0)
+	    nm = MAP_DIAGONAL;
+	  else
+	    return false;
+	  
+	  return true;
+	}
+    }
+
+  return false;
+}
+
+// ----------------------------------------------------------------------
+
 bool NoC::searchLocalMemory(ifstream& f, int& lms, double& epb, double& leakpwr)
 {
   f.clear();
@@ -143,6 +172,24 @@ bool NoC::searchLink(ifstream& f, int& lw, double& epb, double& leakpwr)
     {
       getline(f, line);
       if (sscanf(line.c_str(), "link: %d,%lf,%lf", &lw, &epb, &leakpwr) == 3)
+	return true;
+    }
+
+  return false;
+}
+
+// ----------------------------------------------------------------------
+
+bool NoC::searchGRSLink(ifstream& f, int& lw, double& epb, double& leakpwr)
+{
+  f.clear();
+  f.seekg(0, ios::beg);
+
+  string line;
+  while (!f.eof())
+    {
+      getline(f, line);
+      if (sscanf(line.c_str(), "grslink: %d,%lf,%lf", &lw, &epb, &leakpwr) == 3)
 	return true;
     }
 
@@ -220,16 +267,73 @@ void NoC::searchRadioHubs(ifstream& f, TRadioHubSet& rh)
 
   if (!found)
     return;
-  
+
   rh.clear();
   char rh_name[32];
   while (!f.eof())
     {
       getline(f, line);
       
-      int node;
-      if (sscanf(line.c_str(), "%s %d", rh_name, &node) == 2)
-	rh[string(rh_name)].insert(node);
+      int node, x1, y1, x2, y2;
+      if (sscanf(line.c_str(), "%s %d,%d %d,%d", rh_name, &x1, &y1, &x2, &y2) == 5)
+	{
+	  for (int x=x1; x<=x2; x++)
+	    for (int y=y1; y<=y2; y++)
+	      {
+		node = coord2node(pair<int,int>(y, x));
+		rh[string(rh_name)].insert(node);
+	      }
+	}
+      else
+	break;
+    }
+}
+
+// ----------------------------------------------------------------------
+
+void NoC::searchGRSLinksPositions(ifstream& f, TGRSLinksPositionsSet& grslinks_pos)
+{
+  f.clear();
+  f.seekg(0, ios::beg);
+
+  string line;
+  bool found = false;
+  while (!f.eof() && !found)
+    {
+      getline(f, line);
+      if (strncmp(line.c_str(), "grslink_pos:", 12) == 0)
+	found = true;
+    }
+
+  if (!found)
+    return;
+
+  grslinks_pos.clear();
+  while (!f.eof())
+    {
+      getline(f, line);
+      
+      int  rc, first, last;
+      char dir[16];
+      if (sscanf(line.c_str(), "%s %d,%d..%d", dir, &rc, &first, &last) == 4)
+	{
+	  if (strcmp(dir, "h") == 0)
+	    for (int r=first; r<=last; r++)
+	      {
+		int n1 = coord2node(pair<int,int>(r, rc));
+		int n2 = coord2node(pair<int,int>(r, rc+1));
+		grslinks_pos.insert(pair<int,int>(n1, n2));
+		grslinks_pos.insert(pair<int,int>(n2, n1));
+	      }
+	  else if (strcmp(dir, "v") == 0)
+	    for (int c=first; c<=last; c++)
+	      {
+		int n1 = coord2node(pair<int,int>(rc, c));
+		int n2 = coord2node(pair<int,int>(rc+1, c));
+		grslinks_pos.insert(pair<int,int>(n1, n2));
+		grslinks_pos.insert(pair<int,int>(n2, n1));
+	      }
+	}
       else
 	break;
     }
@@ -273,6 +377,24 @@ bool NoC::searchMulticastUsage(ifstream& f)
 
 // ----------------------------------------------------------------------
 
+bool NoC::searchGRSLinksUsage(ifstream& f)
+{
+  f.clear();
+  f.seekg(0, ios::beg);
+
+  string line;
+  while (!f.eof())
+    {
+      getline(f, line);
+      if (strncmp(line.c_str(), "use_grslinks", 12) == 0)
+	return true;
+    }
+
+  return false;
+}
+
+// ----------------------------------------------------------------------
+
 bool NoC::searchWiNoCData(ifstream& f, float& bw, double& epb, double& leakpwr)
 {
   f.clear();
@@ -298,6 +420,8 @@ bool NoC::loadNoC(const string& fname)
   epb_wireless = 0.0;
   leak_pwr_wireless = 0.0;
   wireless_bandwidth = 0.0;
+  epb_grslink = 0.0;
+  leak_pwr_grslink = 0.0;
   one_hop_wireless = INT_MAX;
   
   cout << "Reading " << fname << "..." << endl;
@@ -359,8 +483,20 @@ bool NoC::loadNoC(const string& fname)
     {
       cerr << "Unspecified memory interfaces or invalid format" << endl;
       return false;
-    }  
-
+    }
+  
+  use_grslinks = searchGRSLinksUsage(f);
+  if (use_grslinks)
+    {
+      searchGRSLinksPositions(f, grslinks_pos);
+      if (!grslinks_pos.empty())
+	if (!searchGRSLink(f, grslink_width, epb_grslink, leak_pwr_grslink))
+	  {
+	    cerr << "Unspecified GRS link or invalid format" << endl;
+	    return false;
+	  }  
+    }
+  
   use_multicast = searchMulticastUsage(f);
   
   use_winoc = searchWiNoCUsage(f);
@@ -375,6 +511,11 @@ bool NoC::loadNoC(const string& fname)
 	  }
     }
 
+  if (!searchNodeMapping(f, node_mapping))
+    {
+      cerr << "Unspecified node mapping or invalid format" << endl;
+      return false;
+    }
 
   makePE2Node(); // must call before makeLinks
   makeRH2Node(); // must call before makeLinks
@@ -433,6 +574,7 @@ void NoC::makeLinks()
 {
   makeWiredLinks();
   makeWirelessLinks();
+  makeGRSLinks();
 }
 
 // ----------------------------------------------------------------------
@@ -531,7 +673,30 @@ void NoC::makeWirelessLinks()
 
 // ----------------------------------------------------------------------
 
+void NoC::makeGRSLinks()
+{
+  for (TGRSLinksPositionsSet::iterator l = grslinks_pos.begin();
+       l != grslinks_pos.end(); l++)
+    {
+      assert(links.find(*l) != links.end());
+      links[*l].link_type = LT_GRS;
+    }
+}
+
+// ----------------------------------------------------------------------
+
 void NoC::makePE2Node()
+{
+  if (node_mapping == MAP_ZIGZAG)
+    makePE2NodeZigZag();
+  else if (node_mapping == MAP_DIAGONAL)
+    makePE2NodeDiagonal();
+  else assert(false);
+}
+
+// ----------------------------------------------------------------------
+
+void NoC::makePE2NodeZigZag()
 {
   pe2node.clear();
 
@@ -547,6 +712,33 @@ void NoC::makePE2Node()
 	    pe_count++;
 	  }
       }
+}
+
+// ----------------------------------------------------------------------
+
+void NoC::makePE2NodeDiagonal()
+{
+  pe2node.clear();
+
+  int pe_count = 0;
+  for (int n=0; n<mesh_width*2; n++)
+    {
+      for (int i=0; i<=n; i++)
+	{
+	  int r = i;
+	  int c = n - i;
+
+	  if (r >= mesh_height || c >= mesh_width)
+	    continue;
+
+	  int node = coord2node(TCoordinate(r,c));
+	  if (memory_interfaces.find(node) == memory_interfaces.end())
+	    {
+	      pe2node[pe_count] = node;
+	      pe_count++;
+	    }
+	}
+   }
 }
 
 // ----------------------------------------------------------------------
@@ -616,6 +808,7 @@ void NoC::showNoC()
 	   << "==============================" << endl;
 
       cout << "Bandwidth: " << wireless_bandwidth/1.0E9 << " Gbps" << endl;
+      cout << "One hop wireless: " << one_hop_wireless << " cycles" << endl;
       
       if (!radio_hubs.empty())
 	{
@@ -629,6 +822,23 @@ void NoC::showNoC()
 		cout << *j << ", ";
 	      cout << endl;
 	    }
+	}
+    }
+
+  if (use_grslinks)
+    {
+      cout << endl
+	   << "GRS" << endl
+	   << "==============================" << endl;
+      
+      cout << "Link width: " << grslink_width << " bits" << endl;
+      if (!grslinks_pos.empty())
+	{
+	  cout << "GRS links: ";
+	  for (TGRSLinksPositionsSet::iterator l=grslinks_pos.begin();
+	       l != grslinks_pos.end(); l++)
+	    cout << l->first << "->" << l->second << ", ";
+	  cout << endl;
 	}
     }
 }
@@ -800,7 +1010,7 @@ TPath NoC::getRoutingPathXYWireless(int src_node, int dst_node)
 pair<int,int> NoC::getClosestRHNode(int node)
 {
   assert(!radio_hubs.empty());
-  
+
   int min_distance = INT_MAX;
   pair<int,int> return_pair;
 
@@ -896,7 +1106,7 @@ TPath NoC::getRoutingPathFA(int src_node, int dst_node)
 
 void NoC::addCommunication(int src_node, int dst_node, long nbytes, int comm_id)
 {
-  TPath path = getRoutingPathXYWireless(src_node, dst_node);
+  TPath path = getRoutingPath(src_node, dst_node);
 
   assert(!path.empty());
 
@@ -928,9 +1138,21 @@ double NoC::getBottleneckLinkCapacity(int src_node, int dst_node,
     {
       TLinkAttr lattr = links.at(path[i]);
 
-      double link_capacity = (lattr.link_type == LT_WIRED) ? // capacity in bytes per cycle
+      // capacity in bytes per cycle
+      /*
+      double link_capacity = (lattr.link_type == LT_WIRED ||
+			      lattr.link_type == LT_GRS) ? 
 	link_width / 8 : wireless_bandwidth / clock_frequency / 8; 
-	
+      */
+      double link_capacity;
+      if (lattr.link_type == LT_WIRED)
+	link_capacity = link_width / 8;
+      else if (lattr.link_type == LT_GRS)
+	link_capacity = grslink_width / 8;
+      else if (lattr.link_type == LT_WIRELESS)
+	link_capacity = wireless_bandwidth / clock_frequency / 8;
+      else assert(false);
+      
       double utilization = (double)nbytes / lattr.total_load;
 
       double bw_utilization = link_capacity * utilization;
@@ -1041,13 +1263,13 @@ int NoC::closestMI(int node)
   vector<int> closest_list;
 
   int min_distance = INT_MAX;
-
+  
   for (TNodeSet::iterator mi=memory_interfaces.begin();
        mi != memory_interfaces.end(); mi++)
     {
       int mi_node = *mi;
-      int distance = getNumberOfHops(node, mi_node);
-
+      int distance = getDistance(node, mi_node); // getNumberOfHops(node, mi_node);
+      
       if (distance < min_distance)
 	{
 	  min_distance = distance;
@@ -1082,7 +1304,7 @@ TLatencyComponents NoC::getLatencyM2C(long nbytes, int dst_first, int dst_last,
       if ( !(same_data && use_multicast) )
 	comm_id++;
     }
-
+  
   // compute max latency
   long max_latency = -1;
   for (int d=dst_first; d<=dst_last; d++)
@@ -1123,7 +1345,7 @@ TLatencyComponents NoC::getLatencyC2M(long nbytes, int src_first, int src_last)
       addCommunication(src_node, closest_mi.at(src_node), nbytes, comm_id);
       comm_id++;
     }
-
+  
   // compute max latency
   long max_latency = -1;
   for (int s=src_first; s<=src_last; s++)
@@ -1167,6 +1389,7 @@ TLatencyComponents NoC::getLatencyC2C(long nbytes,
 	  }
       comm_id++;
     }
+
   
   // compute max latency
   long max_latency = -1;
@@ -1219,6 +1442,7 @@ TLatencyComponents NoC::getLatencyMC2C(long nbytes_from_memory, long nbytes_from
 	comm_id++;
     }
 
+  
   // compute max latency: core to core
   long max_latency = -1;
   for (int s=src_first; s<=src_last; s++)
@@ -1287,11 +1511,11 @@ TLatencyComponents NoC::getLatencyPool(long npool)
 
 // ----------------------------------------------------------------------
 
-pair<double,double> NoC::computeEnergyComm()
+void NoC::computeEnergyComm(double& e_wired,
+			    double& e_wireless,
+			    double& e_grs)
 {
-  double e_wired, e_wireless;
-
-  e_wired = e_wireless = 0.0;
+  e_wired = e_wireless = e_grs = 0.0;
   for (TLinks::iterator li = links.begin(); li != links.end(); li++)
     {
       TLinkAttr lattr = li->second;
@@ -1300,10 +1524,10 @@ pair<double,double> NoC::computeEnergyComm()
 	e_wired += lattr.total_load * 8 * (epb_link + epb_router);
       else if (lattr.link_type == LT_WIRELESS)
 	e_wireless += lattr.total_load * 8 * epb_wireless;
+      else if (lattr.link_type == LT_GRS)
+	e_grs += lattr.total_load * 8 * epb_grslink;
       else assert(false);
     }
-
-  return pair<double,double>(e_wired, e_wireless);
 }
 
 /* mau 
@@ -1341,10 +1565,7 @@ TEnergyComponents NoC::getEnergyM2C(long nbytes, int dst_first, int dst_last,
   else
     ec.e_mmem = computeEnergyMMem(nbytes) * (dst_last - dst_first + 1);
     
-  pair<double,double> e_comm;
-  e_comm = computeEnergyComm();
-  ec.e_comm_wired = e_comm.first;
-  ec.e_comm_wireless = e_comm.second;
+  computeEnergyComm(ec.e_comm_wired, ec.e_comm_wireless, ec.e_comm_grs);
 
   return ec;
 }
@@ -1389,10 +1610,7 @@ TEnergyComponents NoC::getEnergyC2M(long nbytes_lm, long nbytes_mm,
   ec.e_mmem = computeEnergyMMem(nbytes_mm) * (src_last - src_first + 1);
   ec.e_lmem = computeEnergyLMem(nbytes_lm) * (src_last - src_first + 1);
 
-  pair<double,double> e_comm;
-  e_comm = computeEnergyComm();
-  ec.e_comm_wired = e_comm.first;
-  ec.e_comm_wireless = e_comm.second;
+  computeEnergyComm(ec.e_comm_wired, ec.e_comm_wireless, ec.e_comm_grs);
 
   return ec;
 }
@@ -1434,10 +1652,7 @@ TEnergyComponents NoC::getEnergyC2C(long nbytes,
   ec.e_lmem = 2*computeEnergyLMem(nbytes) * // read from lmem of src core write to lmem of dst core
     (src_last - src_first) * (dst_last - dst_first + 1); // src to dst except src to src
 
-  pair<double,double> e_comm;
-  e_comm = computeEnergyComm();
-  ec.e_comm_wired = e_comm.first;
-  ec.e_comm_wireless = e_comm.second;
+  computeEnergyComm(ec.e_comm_wired, ec.e_comm_wireless, ec.e_comm_grs);
   
   return ec;
 }
@@ -1483,10 +1698,7 @@ TEnergyComponents NoC::getEnergyMC2C(long nbytes,
     (src_last - src_first) * (dst_last - dst_first + 1); // src to dst except src to src
   
   // compute interconnect energy
-  pair<double,double> e_comm;
-  e_comm = computeEnergyComm();
-  ec.e_comm_wired = e_comm.first;
-  ec.e_comm_wireless = e_comm.second;
+  computeEnergyComm(ec.e_comm_wired, ec.e_comm_wireless, ec.e_comm_grs);
 
   return ec;
 }
@@ -1547,8 +1759,9 @@ TEnergyComponents NoC::getEnergyCommLeakage(int nrouters, int cycles)
 
   ec.e_comm_wired_leakage += ((nrouters * leak_pwr_router) +
 			      (nrouters * 4 * leak_pwr_link)) * cycles / clock_frequency;
-  ec.e_comm_wireless_leakage += leak_pwr_wireless * cycles / clock_frequency;
-  
+  ec.e_comm_wireless_leakage += rh2node.size() * leak_pwr_wireless * cycles / clock_frequency;
+
+  ec.e_comm_grs_leakage += grslinks_pos.size() * leak_pwr_grslink * cycles / clock_frequency;
   return ec;
 }
 
@@ -1582,43 +1795,95 @@ void NoC::testRouting()
 
 // ----------------------------------------------------------------------
 
+void NoC::showLinksLoad()
+{
+  unsigned long int load_wired = 0;
+  unsigned long int load_wireless = 0;
+  int nwired_links = 0, nwireless_links = 0;
+  
+  for (TLinks::iterator li=links.begin(); li != links.end(); li++)
+    {
+      pair<int,int> l = li->first;
+      TLinkAttr la = li->second;
+      
+      cout << l.first << "->" << l.second << " load: " << la.total_load
+	   << " type: " << la.link_type << " idsize: " << la.comm_ids.size()
+	   << endl;
+
+      if (la.link_type == LT_WIRED)
+	{
+	  nwired_links++;
+	  load_wired += la.total_load;
+	}
+      else
+	{
+	  nwireless_links++;
+	  load_wireless += la.total_load;
+	}
+    }
+
+  cout << "load_wired: " << load_wired << endl
+       << "load_wireless: " << load_wireless << endl
+       << "avg wired load: " << (nwired_links == 0 ? 0 : load_wired/nwired_links) << endl
+       << "avg wireless load: " << (nwireless_links == 0 ? 0 : load_wireless/nwireless_links) << endl;
+}
+
+// ----------------------------------------------------------------------
+
 void NoC::testCommunication()
 {
-  int   src, dst, nbytes, comm_id;
-  int   choice;
-  TPath path;
+  int   src_first, src_last, dst_first, dst_last, nbytes;
+  bool  same_data;
+  int   same_data_int;
   
   do {
+    cout << "nbytes, src_first, src_last, dst_first, dst_last: ";
+    cin >> nbytes >> src_first >> src_last >> dst_first >> dst_last;
+    cout << "same data (1 yes, 0 no)? ";
+    cin >> same_data_int;
+    same_data = (same_data_int == 1);
 
-    cout << "1) Add communication 2) Reset --> ";
-    cin >> choice;
-    if (choice == 1)
-      {	
-	cout << "src dst bytes comm_id: ";
-	cin >> src >> dst >> nbytes >> comm_id;
+    // map communications to links
+    resetLinks();
 
-	path = getRoutingPath(src, dst);
-	for (int i=0; i<path.size(); i++)
-	  cout << "(" << path[i].first << "," << path[i].second << ") --> ";
-	cout << endl;
-		
-	pair<int,int> distance = getDistanceWiredWireless(src, dst);
-	cout << "wired hops: " << distance.first << ", wireless hops: "
-	     << distance.second << endl;
+    int comm_id = 0;
+
+    for (int s=src_first; s<=src_last; s++)
+      for (int d=dst_first; d<=dst_last; d++)
+	{
+	  int src_node = pe2node.at(s);
+	  int dst_node = pe2node.at(d);
+	  
+	  addCommunication(src_node, dst_node, nbytes, comm_id);
+	  
+	  if ( !(same_data && use_multicast) )
+	    comm_id++;
+	}
     
-	addCommunication(src, dst, nbytes, comm_id);
 
-	long cycles = getCommunicationLatency(src, dst, nbytes);
-	cout << "latency: " << cycles << endl;
+    // show communications
+    cout << "Links" << endl;
+    showLinksLoad();
+    
 
-	pair<double,double> energy = computeEnergyComm();
-	cout << "wired energy: " << energy.first
-	     << ", wireless energy: " << energy.second << endl;
+    // compute max latency
+    cout << "Latency" << endl;
+    long max_latency = -1;
+    for (int d=dst_first; d<=dst_last; d++)
+      {
+	int dst_node = pe2node.at(d);
+	
+	long latency = getCommunicationLatency(closest_mi.at(dst_node), dst_node, nbytes);
+
+	cout << closest_mi.at(dst_node) << " --> " << dst_node << ": " << latency
+	     << "\t\tclosest_mi.at(" << dst_node << ") = "
+	     << closest_mi.at(dst_node) << endl;
+	
+	if (latency > max_latency)
+	  max_latency = latency;
       }
-    else if (choice == 2)
-      resetLinks();
-    
-  } while (choice != 0); 
+
+  } while (1); 
 }   
 
 // ----------------------------------------------------------------------

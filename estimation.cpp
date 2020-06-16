@@ -420,7 +420,7 @@ void Estimation::hline(int n, char c)
 #define DOUBLE_FORMAT(x) std::scientific <<std::setprecision(2)<<(x)
 void Estimation::showStats(TGlobalStats& stats)
 {
-  hline(209, '-');
+  hline(229, '-');
 
   cout << setw(16)  << "Layer"
        << setw(10)  << "Type"
@@ -437,8 +437,10 @@ void Estimation::showStats(TGlobalStats& stats)
        << setw(10) << "MMem"
        << setw(10) << "Comm"
        << setw(10) << "CommLeak"
-       << setw(10) << "Wiless"
+       << setw(10) << "Wireless"
        << setw(10) << "WiLeak"
+       << setw(10) << "GRS"
+       << setw(10) << "GRSLeak"
        << setw(10) << "Comp"
        << setw(10) << "CompLeak"
        << setw(10) << "LMem"
@@ -452,7 +454,7 @@ void Estimation::showStats(TGlobalStats& stats)
        << setw(9)  << "per core"
        << endl;
   
-  hline(209, '=');
+  hline(229, '=');
   
   for (int l=0; l<cnn.layers.size(); l++)
     {
@@ -465,6 +467,8 @@ void Estimation::showStats(TGlobalStats& stats)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comm_wired_energy_leakage)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comm_wireless_energy)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comm_wireless_energy_leakage)
+	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comm_grs_energy)
+	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comm_grs_energy_leakage)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comp_energy)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].comp_energy_leakage)
 	   << setw(10) << DOUBLE_FORMAT(stats.layer_stats[l].lmem_energy)
@@ -479,7 +483,7 @@ void Estimation::showStats(TGlobalStats& stats)
 	   << endl;
     }
 
-  hline(209, '-');
+  hline(229, '-');
 
   cout << setw(16+10) << "TOTAL"
        << setw(10) << stats.total_comm_latency
@@ -489,6 +493,8 @@ void Estimation::showStats(TGlobalStats& stats)
        << setw(10) << DOUBLE_FORMAT(stats.total_comm_wired_energy_leakage)
        << setw(10) << DOUBLE_FORMAT(stats.total_comm_wireless_energy)
        << setw(10) << DOUBLE_FORMAT(stats.total_comm_wireless_energy_leakage)
+       << setw(10) << DOUBLE_FORMAT(stats.total_comm_grs_energy)
+       << setw(10) << DOUBLE_FORMAT(stats.total_comm_grs_energy_leakage)
        << setw(10) << DOUBLE_FORMAT(stats.total_comp_energy)
        << setw(10) << DOUBLE_FORMAT(stats.total_comp_energy_leakage)
        << setw(10) << DOUBLE_FORMAT(stats.total_lmem_energy)
@@ -500,5 +506,5 @@ void Estimation::showStats(TGlobalStats& stats)
        << setw(12) << stats.total_main_memory_traffic_store_ofm
        << endl;
 
-  hline(209, '-');
+  hline(229, '-');
 }
