@@ -6,6 +6,8 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <cstring>
+#include <cassert>
 
 using namespace std;
 
